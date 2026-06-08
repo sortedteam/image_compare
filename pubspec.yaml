@@ -1,0 +1,21 @@
+name: handpickd_image_compare
+description: Image similarity — OpenCV, perceptual hashes, and optional OCR.
+version: 1.0.0
+publish_to: none
+
+environment:
+  sdk: ^3.6.0
+  flutter: ">=3.27.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_pixelmatching:
+    path: packages/flutter_pixelmatching
+  image: ^4.5.4
+  image_hash: ^1.1.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
