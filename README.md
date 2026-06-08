@@ -1,6 +1,8 @@
 # handpickd_image_compare
 
-Flutter image similarity package — OpenCV pixel matching, perceptual hashes, and optional OCR.
+Flutter image similarity package — OpenCV pixel matching, perceptual hashes, and OCR (Google ML Kit Text Recognition).
+
+Uses `google_mlkit_text_recognition` pinned to GoogleMLKit **3.2.0** so it resolves alongside `mobile_scanner` 2.x without iOS pod conflicts.
 
 ## Install
 
