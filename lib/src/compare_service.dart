@@ -370,6 +370,7 @@ Future<CompareScores> _scorePreparedPair(
       sharedTokens: [],
       image1Duration: Duration.zero,
       image2Duration: Duration.zero,
+      substringMatched: false,
     );
     var ocrRan = false;
     if (options.ocr) {
