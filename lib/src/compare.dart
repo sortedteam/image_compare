@@ -92,6 +92,7 @@ Future<double> compareQueriesToReference(
   int? maxImageDimension,
   bool openCvBidirectional = true,
   bool openCvReuseInstance = false,
+  bool logCompareSteps = false,
 }) {
   return impl.compareQueriesToReference(
     reference,
@@ -106,6 +107,7 @@ Future<double> compareQueriesToReference(
       maxImageDimension: maxImageDimension,
       openCvBidirectional: openCvBidirectional,
       openCvReuseInstance: openCvReuseInstance,
+      logCompareSteps: logCompareSteps,
     ),
   );
 }

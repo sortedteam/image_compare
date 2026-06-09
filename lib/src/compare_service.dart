@@ -86,15 +86,14 @@ Future<CompareScores> compareTwoImages(
     throw ArgumentError('At least one compare option must be enabled.');
   }
 
-  final logging = options.logCompareSteps;
-  CompareLogger.log('── compare start ──', enabled: logging);
-  CompareLogger.logOptions(options, enabled: logging);
+  CompareLogger.log('── compare start ──', options: options);
+  CompareLogger.logOptions(options);
 
   final referenceOriginal = describeImageBytes(image1);
   final queryOriginal = describeImageBytes(image2);
   CompareLogger.logInputStage(
-    enabled: logging,
     stage: 'STEP 1 — original upload bytes (pre-resize)',
+    options: options,
     meta: CompareInputMeta(
       referenceOriginal: referenceOriginal,
       queryOriginal: queryOriginal,
@@ -134,26 +133,29 @@ Future<CompareScores> compareTwoImages(
   );
 
   CompareLogger.logInputStage(
-    enabled: logging,
     stage: resized
         ? 'STEP 2 — after resize/normalize'
         : 'STEP 2 — no resize (using original bytes)',
+    options: options,
     meta: inputMeta,
   );
 
   if (options.openCv) {
-    CompareLogger.log(
-      'STEP 3 — OpenCV '
-      '${options.openCvBidirectional ? "forward+reverse" : "forward-only"} '
-      '${options.openCvReuseInstance ? "(reuse instance)" : "(new instance per pass)"}',
-      enabled: logging,
+    CompareLogger.logStep(
+      step: 'STEP 3 — OpenCV '
+          '${options.openCvBidirectional ? "forward+reverse" : "forward-only"} '
+          '${options.openCvReuseInstance ? "(reuse instance)" : "(new instance per pass)"}',
+      options: options,
     );
   }
   if (options.anyHash) {
-    CompareLogger.log('STEP 4 — perceptual hash compare', enabled: logging);
+    CompareLogger.logStep(
+      step: 'STEP 4 — perceptual hash compare',
+      options: options,
+    );
   }
   if (options.ocr) {
-    CompareLogger.log('STEP 5 — OCR compare', enabled: logging);
+    CompareLogger.logStep(step: 'STEP 5 — OCR compare', options: options);
   }
 
   final scores = await _comparePreparedImages(
@@ -163,22 +165,8 @@ Future<CompareScores> compareTwoImages(
     inputMeta: inputMeta,
   );
 
-  CompareLogger.logScoreSummary(
-    enabled: logging,
-    overallPercent: scores.overallPercent,
-    visualPercent: scores.visualPercent,
-    openCvBest: scores.openCvBest,
-    openCvForward: scores.openCvForward,
-    openCvReverse: scores.openCvReverse,
-    perceptualHashPercent: scores.perceptualHashPercent,
-    differenceHashPercent: scores.differenceHashPercent,
-    averageHashPercent: scores.averageHashPercent,
-    ocrPercent: scores.ocrPercent,
-    totalMs: scores.timings.total.inMilliseconds,
-    openCvMs: scores.timings.openCvTotal.inMilliseconds,
-    hashMs: scores.timings.imageHashTotal.inMilliseconds,
-  );
-  CompareLogger.log('── compare end ──', enabled: logging);
+  _logPairScoreSummary(scores);
+  CompareLogger.log('── compare end ──', options: options);
 
   return scores;
 }
@@ -191,47 +179,92 @@ Future<double> compareQueriesToReference(
 }) async {
   if (queries.isEmpty) return 0;
 
+  CompareLogger.logBatchStart(queryCount: queries.length, options: options);
+
   final normalizedReference = normalizeImageBytes(
     reference,
     maxDimension: options.maxImageDimension,
   );
-  if (normalizedReference == null) return 0;
+  if (normalizedReference == null) {
+    CompareLogger.log(
+      'batch aborted | failed to normalize reference image',
+      options: options,
+    );
+    return 0;
+  }
 
   double? bestScore;
   PixelMatching? sharedMatching;
 
   if (options.openCv && options.openCvReuseInstance) {
+    CompareLogger.logStep(
+      step: 'OpenCV | initializing shared PixelMatching on reference',
+      options: options,
+    );
     sharedMatching = PixelMatching();
     final ok = await sharedMatching.initialize(image: normalizedReference);
     if (!ok) {
+      CompareLogger.log(
+        'OpenCV | shared PixelMatching init failed, will retry per query',
+        options: options,
+      );
       sharedMatching.dispose();
       sharedMatching = null;
     }
   }
 
   try {
+    var queryIndex = 0;
     for (final query in queries) {
+      CompareLogger.logBatchQuery(
+        queryIndex: queryIndex,
+        queryCount: queries.length,
+        refBytes: normalizedReference.length,
+        queryBytes: query.length,
+        options: options,
+      );
+
       final normalizedQuery = normalizeImageBytes(
         query,
         maxDimension: options.maxImageDimension,
       );
-      if (normalizedQuery == null) continue;
+      if (normalizedQuery == null) {
+        CompareLogger.log(
+          'query ${queryIndex + 1}/${queries.length} | skipped (decode/normalize failed)',
+          options: options,
+        );
+        queryIndex++;
+        continue;
+      }
 
       final score = await _scorePreparedPair(
         normalizedReference,
         normalizedQuery,
         options: options,
         sharedMatching: sharedMatching,
+        queryIndex: queryIndex,
+        queryCount: queries.length,
       );
+      _logPairScoreSummary(score);
+
       if (bestScore == null || score.overallPercent > bestScore) {
+        CompareLogger.log(
+          'query ${queryIndex + 1}/${queries.length} | new best='
+          '${score.overallPercent.toStringAsFixed(1)}%',
+          options: options,
+        );
         bestScore = score.overallPercent;
       }
+
+      queryIndex++;
     }
   } finally {
     sharedMatching?.dispose();
   }
 
-  return bestScore ?? 0;
+  final result = bestScore ?? 0;
+  CompareLogger.logBatchBest(bestScore: result, options: options);
+  return result;
 }
 
 Future<CompareScores> _comparePreparedImages(
@@ -256,8 +289,13 @@ Future<CompareScores> _scorePreparedPair(
   required ImageCompareOptions options,
   CompareInputMeta? inputMeta,
   PixelMatching? sharedMatching,
+  int? queryIndex,
+  int? queryCount,
 }) async {
   final totalSw = Stopwatch()..start();
+  final pairLabel = queryIndex != null && queryCount != null
+      ? 'query ${queryIndex + 1}/$queryCount'
+      : 'pair';
 
   var openCvForward = 0.0;
   var openCvReverse = 0.0;
@@ -266,6 +304,10 @@ Future<CompareScores> _scorePreparedPair(
   PixelMatching? ownedMatching;
 
   if (options.openCv) {
+    CompareLogger.logStep(
+      step: '$pairLabel | OpenCV START',
+      options: options,
+    );
     final openCvResult = await _runOpenCvCompare(
       image1,
       image2,
@@ -285,6 +327,18 @@ Future<CompareScores> _scorePreparedPair(
         ? (openCvForward > openCvReverse ? openCvForward : openCvReverse)
         : openCvForward;
 
+    if (options.openCv) {
+      CompareLogger.logOpenCvDone(
+        forward: openCvForward,
+        reverse: openCvReverse,
+        best: openCvBest,
+        bidirectional: options.openCvBidirectional,
+        ms: openCvFwdDuration.inMilliseconds + openCvRevDuration.inMilliseconds,
+        options: options,
+      );
+    }
+
+    CompareLogger.logStep(step: '$pairLabel | hashes START', options: options);
     final hashScores = options.anyHash
         ? _perceptualScores(
             image1,
@@ -294,6 +348,20 @@ Future<CompareScores> _scorePreparedPair(
             average: options.averageHash,
           )
         : _emptyHashScores();
+
+    if (options.anyHash) {
+      final hashMs = hashScores.decodeDuration.inMilliseconds +
+          hashScores.perceptualDuration.inMilliseconds +
+          hashScores.differenceDuration.inMilliseconds +
+          hashScores.averageDuration.inMilliseconds;
+      CompareLogger.logHashesDone(
+        perceptual: hashScores.perceptual,
+        difference: hashScores.difference,
+        average: hashScores.average,
+        ms: hashMs,
+        options: options,
+      );
+    }
 
     OcrCompareResult ocr = const OcrCompareResult(
       text1: '',
@@ -308,8 +376,17 @@ Future<CompareScores> _scorePreparedPair(
       final skipOcr = options.skipOcrIfAverageAbove50 &&
           options.averageHash &&
           hashScores.average > 50;
-      if (!skipOcr) {
-        ocr = await compareTextInImages(image1, image2);
+      if (skipOcr) {
+        CompareLogger.logOcrSkipped(
+          averageHashPercent: hashScores.average,
+          options: options,
+        );
+      } else {
+        ocr = await compareTextInImages(
+          image1,
+          image2,
+          options: options,
+        );
         ocrRan = true;
       }
     }
@@ -329,6 +406,15 @@ Future<CompareScores> _scorePreparedPair(
             sharedTokens: ocr.sharedTokens,
           )
         : visual;
+
+    CompareLogger.logMerge(
+      visual: visual,
+      ocrPercent: ocr.similarityPercent,
+      sharedTokens: ocr.sharedTokens,
+      ocrRan: ocrRan,
+      overall: overall,
+      options: options,
+    );
 
     totalSw.stop();
 
@@ -624,5 +710,29 @@ double _mergeWithOcr({
     perceptualDuration: perceptualDuration,
     differenceDuration: differenceDuration,
     averageDuration: averageDuration,
+  );
+}
+
+void _logPairScoreSummary(CompareScores scores) {
+  final options = scores.options;
+  final ocrRan = options.ocr && scores.timings.ocrTotal > Duration.zero;
+
+  CompareLogger.logScoreSummary(
+    overallPercent: scores.overallPercent,
+    visualPercent: scores.visualPercent,
+    openCvBest: scores.openCvBest,
+    openCvForward: scores.openCvForward,
+    openCvReverse: scores.openCvReverse,
+    perceptualHashPercent: scores.perceptualHashPercent,
+    differenceHashPercent: scores.differenceHashPercent,
+    averageHashPercent: scores.averageHashPercent,
+    ocrPercent: scores.ocrPercent,
+    ocrRan: ocrRan,
+    sharedOcrTokens: scores.sharedOcrTokens,
+    totalMs: scores.timings.total.inMilliseconds,
+    openCvMs: scores.timings.openCvTotal.inMilliseconds,
+    hashMs: scores.timings.imageHashTotal.inMilliseconds,
+    ocrMs: scores.timings.ocrTotal.inMilliseconds,
+    options: options,
   );
 }
