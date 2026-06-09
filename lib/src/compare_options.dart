@@ -6,7 +6,7 @@ class ImageCompareOptions {
     this.differenceHash = true,
     this.averageHash = true,
     this.ocr = false,
-    this.skipOcrIfAverageAbove50 = true,
+    this.skipOcrIfAverageAbove50 = false,
     this.maxImageDimension,
     this.openCvBidirectional = true,
     this.openCvReuseInstance = false,
@@ -22,7 +22,9 @@ class ImageCompareOptions {
   final bool averageHash;
   final bool ocr;
 
-  /// When [ocr] is on and [averageHash] score is already above 50%, skip OCR.
+  /// When [ocr] is on, [averageHash] is enabled, average hash > 50%, **and**
+  /// OpenCV best score > 50%, skip OCR as an optimization. If OpenCV is weak,
+  /// OCR still runs so text can rescue the score.
   final bool skipOcrIfAverageAbove50;
 
   /// Downscale both images so the longest edge is at most this value before
@@ -42,6 +44,18 @@ class ImageCompareOptions {
   bool get anyHash => perceptualHash || differenceHash || averageHash;
 
   bool get anyEnabled => openCv || anyHash || ocr;
+
+  /// Whether OCR should be skipped for this pair (see [skipOcrIfAverageAbove50]).
+  bool shouldSkipOcr({
+    required double averageHashPercent,
+    required double openCvBest,
+  }) {
+    if (!ocr || !skipOcrIfAverageAbove50 || !averageHash) return false;
+    if (averageHashPercent <= 50) return false;
+    // Hashes alone are not enough when pixels don't align.
+    if (openCvBest * 100 <= 50) return false;
+    return true;
+  }
 
   ImageCompareOptions copyWith({
     bool? openCv,

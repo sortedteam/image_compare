@@ -105,10 +105,12 @@ class CompareLogger {
 
   static void logOcrSkipped({
     required double averageHashPercent,
+    required double openCvBestPercent,
     required ImageCompareOptions options,
   }) {
     log(
       'OCR SKIPPED | aHash=${averageHashPercent.toStringAsFixed(1)}% > 50% '
+      'and openCv=${openCvBestPercent.toStringAsFixed(1)}% > 50% '
       '(skipOcrIfAverageAbove50=${options.skipOcrIfAverageAbove50})',
       options: options,
     );

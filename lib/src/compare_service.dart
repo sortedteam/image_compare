@@ -373,12 +373,14 @@ Future<CompareScores> _scorePreparedPair(
     );
     var ocrRan = false;
     if (options.ocr) {
-      final skipOcr = options.skipOcrIfAverageAbove50 &&
-          options.averageHash &&
-          hashScores.average > 50;
+      final skipOcr = options.shouldSkipOcr(
+        averageHashPercent: hashScores.average,
+        openCvBest: openCvBest,
+      );
       if (skipOcr) {
         CompareLogger.logOcrSkipped(
           averageHashPercent: hashScores.average,
+          openCvBestPercent: openCvBest * 100,
           options: options,
         );
       } else {
@@ -604,6 +606,9 @@ double _mergeWithOcr({
 
   if (sharedTokens.isNotEmpty) {
     merged = (merged + 12).clamp(0.0, 100.0);
+    if (ocrPercent < 30) {
+      merged = merged > visual ? merged : (visual + 8).clamp(0.0, 100.0);
+    }
   }
   if (ocrPercent >= 75) {
     merged = merged > ocrPercent * 0.9 ? merged : ocrPercent * 0.9;
