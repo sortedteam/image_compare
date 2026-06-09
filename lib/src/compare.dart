@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 
 import 'compare_options.dart';
 import 'compare_service.dart' as impl;
+import 'ocr_match_mode.dart';
 
 export 'compare_service.dart' show CompareScores, CompareTimings;
 
@@ -17,6 +18,7 @@ Future<double> compareTwoImages(
   bool averageHash = true,
   bool ocr = false,
   bool skipOcrIfAverageAbove50 = false,
+  OcrMatchMode ocrMatchMode = OcrMatchMode.exact,
   int? maxImageDimension,
   bool openCvBidirectional = true,
   bool openCvReuseInstance = false,
@@ -31,6 +33,7 @@ Future<double> compareTwoImages(
       averageHash: averageHash,
       ocr: ocr,
       skipOcrIfAverageAbove50: skipOcrIfAverageAbove50,
+      ocrMatchMode: ocrMatchMode,
       maxImageDimension: maxImageDimension,
       openCvBidirectional: openCvBidirectional,
       openCvReuseInstance: openCvReuseInstance,
@@ -58,6 +61,7 @@ Future<impl.CompareScores> compareTwoImagesDetailed(
   bool averageHash = true,
   bool ocr = false,
   bool skipOcrIfAverageAbove50 = false,
+  OcrMatchMode ocrMatchMode = OcrMatchMode.exact,
   int? maxImageDimension,
   bool openCvBidirectional = true,
   bool openCvReuseInstance = false,
@@ -72,6 +76,7 @@ Future<impl.CompareScores> compareTwoImagesDetailed(
       averageHash: averageHash,
       ocr: ocr,
       skipOcrIfAverageAbove50: skipOcrIfAverageAbove50,
+      ocrMatchMode: ocrMatchMode,
       maxImageDimension: maxImageDimension,
       openCvBidirectional: openCvBidirectional,
       openCvReuseInstance: openCvReuseInstance,
@@ -89,6 +94,7 @@ Future<double> compareQueriesToReference(
   bool averageHash = true,
   bool ocr = false,
   bool skipOcrIfAverageAbove50 = false,
+  OcrMatchMode ocrMatchMode = OcrMatchMode.exact,
   int? maxImageDimension,
   bool openCvBidirectional = true,
   bool openCvReuseInstance = false,
@@ -104,6 +110,7 @@ Future<double> compareQueriesToReference(
       averageHash: averageHash,
       ocr: ocr,
       skipOcrIfAverageAbove50: skipOcrIfAverageAbove50,
+      ocrMatchMode: ocrMatchMode,
       maxImageDimension: maxImageDimension,
       openCvBidirectional: openCvBidirectional,
       openCvReuseInstance: openCvReuseInstance,

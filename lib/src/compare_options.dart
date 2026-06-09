@@ -1,3 +1,5 @@
+import 'ocr_match_mode.dart';
+
 /// Which algorithms run when comparing two images.
 class ImageCompareOptions {
   const ImageCompareOptions({
@@ -7,6 +9,7 @@ class ImageCompareOptions {
     this.averageHash = true,
     this.ocr = false,
     this.skipOcrIfAverageAbove50 = false,
+    this.ocrMatchMode = OcrMatchMode.exact,
     this.maxImageDimension,
     this.openCvBidirectional = true,
     this.openCvReuseInstance = false,
@@ -26,6 +29,10 @@ class ImageCompareOptions {
   /// OpenCV best score > 50%, skip OCR as an optimization. If OpenCV is weak,
   /// OCR still runs so text can rescue the score.
   final bool skipOcrIfAverageAbove50;
+
+  /// [OcrMatchMode.exact] = identical tokens only.
+  /// [OcrMatchMode.partial] = substring / token-substring overlap (either way).
+  final OcrMatchMode ocrMatchMode;
 
   /// Downscale both images so the longest edge is at most this value before
   /// compare. `null` keeps original bytes (current behavior).
@@ -64,6 +71,7 @@ class ImageCompareOptions {
     bool? averageHash,
     bool? ocr,
     bool? skipOcrIfAverageAbove50,
+    OcrMatchMode? ocrMatchMode,
     int? maxImageDimension,
     bool? openCvBidirectional,
     bool? openCvReuseInstance,
@@ -78,6 +86,7 @@ class ImageCompareOptions {
       ocr: ocr ?? this.ocr,
       skipOcrIfAverageAbove50:
           skipOcrIfAverageAbove50 ?? this.skipOcrIfAverageAbove50,
+      ocrMatchMode: ocrMatchMode ?? this.ocrMatchMode,
       maxImageDimension: clearMaxImageDimension
           ? null
           : (maxImageDimension ?? this.maxImageDimension),

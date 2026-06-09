@@ -5,6 +5,7 @@ import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart
 
 import 'compare_logger.dart';
 import 'compare_options.dart';
+import 'ocr_text_compare.dart';
 
 class OcrCompareResult {
   const OcrCompareResult({
@@ -14,6 +15,7 @@ class OcrCompareResult {
     required this.sharedTokens,
     required this.image1Duration,
     required this.image2Duration,
+    required this.substringMatched,
   });
 
   final String text1;
@@ -22,6 +24,7 @@ class OcrCompareResult {
   final List<String> sharedTokens;
   final Duration image1Duration;
   final Duration image2Duration;
+  final bool substringMatched;
 }
 
 TextRecognizer? _recognizer;
@@ -30,7 +33,7 @@ Future<TextRecognizer> _textRecognizer() async {
   return _recognizer ??= TextRecognizer(script: TextRecognitionScript.latin);
 }
 
-/// OCR text extraction + token overlap compare via Google ML Kit.
+/// OCR text extraction + compare via Google ML Kit.
 Future<OcrCompareResult> compareTextInImages(
   Uint8List bytes1,
   Uint8List bytes2, {
@@ -46,30 +49,36 @@ Future<OcrCompareResult> compareTextInImages(
   final text2 = await _recognizeText(bytes2, label: 'image2', options: options);
   sw2.stop();
 
-  final tokens1 = _tokenize(text1);
-  final tokens2 = _tokenize(text2);
-  final shared = tokens1.intersection(tokens2).toList()..sort();
-  final similarity = _tokenSimilarityPercent(tokens1, tokens2);
+  final compared = compareOcrTexts(
+    text1,
+    text2,
+    mode: options.ocrMatchMode,
+  );
 
   CompareLogger.log(
-    'OCR tokens | image1=$tokens1 image2=$tokens2',
+    'OCR compare | mode=${options.ocrMatchMode.name} '
+    'substringMatched=${compared.substringMatched} '
+    'tokens=${
+      compared.sharedTokens
+    }',
     options: options,
   );
 
   final result = OcrCompareResult(
     text1: text1,
     text2: text2,
-    similarityPercent: similarity,
-    sharedTokens: shared,
+    similarityPercent: compared.similarityPercent,
+    sharedTokens: compared.sharedTokens,
     image1Duration: sw1.elapsed,
     image2Duration: sw2.elapsed,
+    substringMatched: compared.substringMatched,
   );
 
   CompareLogger.logOcrResult(
     text1: text1,
     text2: text2,
-    ocrPercent: similarity,
-    sharedTokens: shared,
+    ocrPercent: compared.similarityPercent,
+    sharedTokens: compared.sharedTokens,
     image1Ms: sw1.elapsedMilliseconds,
     image2Ms: sw2.elapsedMilliseconds,
     options: options,
@@ -127,26 +136,4 @@ Future<String> _recognizeText(
       } catch (_) {}
     }
   }
-}
-
-Set<String> _tokenize(String text) {
-  if (text.isEmpty) return {};
-
-  final tokens = <String>{};
-  for (final match in RegExp(r'[a-z0-9]+').allMatches(text.toLowerCase())) {
-    final token = match.group(0)!;
-    if (token.length >= 2) tokens.add(token);
-  }
-  return tokens;
-}
-
-double _tokenSimilarityPercent(Set<String> left, Set<String> right) {
-  if (left.isEmpty && right.isEmpty) return 0;
-  if (left.isEmpty || right.isEmpty) return 0;
-
-  final shared = left.intersection(right);
-  final union = left.union(right);
-  if (union.isEmpty) return 0;
-
-  return (shared.length / union.length) * 100.0;
 }

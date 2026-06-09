@@ -19,7 +19,8 @@ class CompareLogger {
     log(
       'options: openCv=${options.openCv}, hashes='
       'p${options.perceptualHash}/d${options.differenceHash}/a${options.averageHash}, '
-      'ocr=${options.ocr}, skipOcrIfAvgAbove50=${options.skipOcrIfAverageAbove50}, '
+      'ocr=${options.ocr}, ocrMatch=${options.ocrMatchMode.name}, '
+      'skipOcrIfAvgAbove50=${options.skipOcrIfAverageAbove50}, '
       'maxDim=${options.maxImageDimension ?? "none"}, '
       'bidirectional=${options.openCvBidirectional}, reuse=${options.openCvReuseInstance}, '
       'verbose=${options.logCompareSteps}',
